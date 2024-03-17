@@ -1,9 +1,42 @@
 #include <ncurses.h>
+#include <vector>
+
+int x = 12, y = 10;
+
+char map [37][100];
+void dungeon(int c, int rows, int cols)
+{
+
+	for (int yy = 0; yy < rows; yy++)
+	{
+		for (int xx = 0; xx < cols; xx++)
+		{
+			map[yy][xx] = '#';
+			mvaddch(yy, xx, '#');
+		}	
+	}
+	
+	for (int yy = 7; yy < rows/2; yy++)
+	{
+		for (int xx = 11; xx < cols/2; xx++)
+		{
+			map[yy][xx] = ' ';
+			mvaddch(yy, xx, ' ');
+		}
+	}
+
+
+	if (c == KEY_UP && map[y-1][x] != '#') y--;
+	else if (c == KEY_DOWN && map[y+1][x] != '#') y++;
+	else if (c == KEY_RIGHT && map[y][x+1] != '#') x++;
+	else if (c == KEY_LEFT && map[y][x-1] != '#') x--;
+	
+	mvaddch(y, x, '@'); // print cursor
+}
 
 int main()
 {
-	int c;
-	int x = 10, y = 10;
+	int c = 0;
 	int cols, rows;
 
 	initscr();
@@ -12,31 +45,11 @@ int main()
 	keypad(stdscr, 1); // allow arrows
 
 	getmaxyx(stdscr, rows, cols);
-	char map[rows][cols];
+
 	do 
 	{
-		for (int yy = 0; yy <= rows; yy++)
-		{
-			for (int xx = 0; xx <= cols; xx++)
-			{
-				map[yy][xx] = '#';
-				mvaddch(yy, xx, '#');
-			}
-		}
+		dungeon(c, rows, cols);
 
-		for (int yy = 7; yy <= rows/2; yy++)
-		{
-			for (int xx = 11; xx <= cols/2; xx++)
-			{
-				map[yy][xx] = '0';
-				mvaddch(yy, xx, ' ');
-			}
-		}
-		if (c == KEY_UP) y--;
-		else if (c == KEY_DOWN) y++;
-		else if (c == KEY_RIGHT) x++;
-		else if (c == KEY_LEFT) x--;
-		mvaddch(y, x, '@'); // print cursor
 	}
 	while ((c = getch()) != 27); // 27 - ESC
 
