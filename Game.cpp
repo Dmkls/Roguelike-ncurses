@@ -1,37 +1,102 @@
-#include <ncurses.h>
+#include <curses.h>
 #include <vector>
+#include <stdlib.h>
+#include <time.h>
 
-int x = 12, y = 10;
+int px, py; // player coords
+int tx, ty; // goblin coords
+int rx, ry, r_sizeY, r_sizeX;
 
-char map [37][100];
-void dungeon(int c, int rows, int cols)
+bool t_placed = 0;
+bool p_placed = 0;
+bool r_placed = 0;
+int p_gold = 0;
+
+void dungeon(int c, int rows, int cols, std::vector<std::vector<char>>&map)
 {
 
-	for (int yy = 0; yy < rows; yy++)
+	srand(time(NULL));
+	
+	// coords for room
+	if (!r_placed)
+	{	
+		ry = rand() % (rows - 5) + 1;
+		rx = rand() % (cols - 7) + 1;
+		
+		r_sizeY = rand() % 5 + 5;
+		r_sizeX = rand() % 10 + 15;
+		
+		r_placed = 1;
+	}
+	
+	// draw walls and borders
+	for (int y = 0; y <= rows; y++)
 	{
-		for (int xx = 0; xx < cols; xx++)
+		for (int x = 0; x <= cols; x++)
 		{
-			map[yy][xx] = '#';
-			mvaddch(yy, xx, '#');
+			if (y == 0 || x == 0 || y == rows || x == cols)
+			{
+				map[y][x] = '%';
+				mvaddch(y, x, '%');
+			}
+			else
+			{
+				map[y][x] = '#';
+				mvaddch(y, x, '#');
+			}
 		}	
 	}
 	
-	for (int yy = 7; yy < rows/2; yy++)
+	// draw room
+	for (int y = ry; y <= ry+r_sizeY; y++)
 	{
-		for (int xx = 11; xx < cols/2; xx++)
+		if (y >= rows) {break;}
+		for (int x = rx; x <= rx+r_sizeX; x++)
 		{
-			map[yy][xx] = ' ';
-			mvaddch(yy, xx, ' ');
+			if (x >= cols) {break;}
+			{
+				map[y][x] = ' ';
+				mvaddch(y, x, ' ');
+			}
 		}
 	}
 
-
-	if (c == KEY_UP && map[y-1][x] != '#') y--;
-	else if (c == KEY_DOWN && map[y+1][x] != '#') y++;
-	else if (c == KEY_RIGHT && map[y][x+1] != '#') x++;
-	else if (c == KEY_LEFT && map[y][x-1] != '#') x--;
+	if (c == KEY_UP && map[py-1][px] != '#' && map[py-1][px] != '%') py--;
+	else if (c == KEY_DOWN && map[py+1][px] != '#' && map[py+1][px] != '%') py++;
+	else if (c == KEY_RIGHT && map[py][px+1] != '#' && map[py][px+1] != '%') px++;
+	else if (c == KEY_LEFT && map[py][px-1] != '#' && map[py][px-1] != '%') px--;
 	
-	mvaddch(y, x, '@'); // print cursor
+	if (!p_placed)
+	{
+		do 
+		{
+			py = rand() % rows;
+			px = rand() % cols;
+		}
+		while (map[py][px] != ' ');
+		p_placed = 1;
+	}
+	
+	if (!t_placed)
+	{
+		do 
+		{
+			ty = rand() % rows;
+			tx = rand() % cols;
+		}
+		while (map[ty][tx] != ' ');
+		t_placed = 1;
+	}
+	
+	if ((px == tx) && (py == ty))
+	{
+		t_placed = 0;
+		p_gold += rand() % 10 + 1;
+	}
+	
+	mvaddch(ty, tx, 't'); // print goblin
+	mvaddch(py, px, '@'); // print cursor
+	mvprintw(rows, 0, "Gold: %d", p_gold);
 }
 
 int main()
@@ -45,11 +110,12 @@ int main()
 	keypad(stdscr, 1); // allow arrows
 
 	getmaxyx(stdscr, rows, cols);
+	
+	std::vector<std::vector<char>> map (rows, std::vector<char>(cols, ' '));
 
 	do 
 	{
-		dungeon(c, rows, cols);
-
+		dungeon(c, rows-1, cols-1, map);
 	}
 	while ((c = getch()) != 27); // 27 - ESC
 
