@@ -4,13 +4,41 @@
 #include <time.h>
 
 int px, py; // player coords
-int tx, ty; // goblin coords
 
 bool t_placed = 0;
 bool p_placed = 0;
 int r_placed = 0;
 int p_gold = 0;
+int dlvl = 1;
 
+class Monster {
+	public:
+		int y;
+		int x;
+		int hp;
+};
+
+Monster monsters[10];
+
+void battle(std::vector<std::vector<char>>&map, int dir_y, int dir_x)
+{
+	for (int m = 0; m < 10; m++)
+	{
+		if (dir_y == monsters[m].y && dir_x == monsters[m].x)
+		{
+			if (monsters[m].hp <= 0)
+			{
+				map[dir_y][dir_x] = ' ';
+				p_gold += rand() % 10 + 1;
+			}
+			else if (monsters[m].hp >= 1)
+			{
+				monsters[m].hp -= 1;
+			}
+			break;
+		}
+	}
+}
 
 void corridor(int y, int x, int y2, int x2, std::vector<std::vector<char>>&map)
 {
@@ -47,23 +75,48 @@ void bigcorridor(int y, int x, int y2, int x2, std::vector<std::vector<char>>&ma
 	}
 }
 
-void move_player(int c, std::vector<std::vector<char>>&map)
+int p_action(int c, std::vector<std::vector<char>>&map)
 {
-	if (c == KEY_UP && map[py-1][px] != '#' && map[py-1][px] != '%') py--;
-	else if (c == KEY_DOWN && map[py+1][px] != '#' && map[py+1][px] != '%') py++;
-	else if (c == KEY_RIGHT && map[py][px+1] != '#' && map[py][px+1] != '%') px++;
-	else if (c == KEY_LEFT && map[py][px-1] != '#' && map[py][px-1] != '%') px--;
+	int dir_y = py, dir_x = px;
+	
+	if		(c == KEY_UP)
+		dir_y--;
+	else if (c == KEY_DOWN)
+		dir_y++;
+	else if (c == KEY_RIGHT)
+		dir_x++;
+	else if (c == KEY_LEFT)
+		dir_x--;
+	else if (c == '>' && map[py][px] == '>')
+	{
+		r_placed = 0;
+		p_placed = 0;
+		t_placed = 0;
+		return 1;
+	}
+	
+	if (map[dir_y][dir_x] == ' ' || map[dir_y][dir_x] == '>')
+	{
+		py = dir_y;
+		px = dir_x;
+	}
+	else if (map[dir_y][dir_x] == 't')
+		battle(map, dir_y, dir_x);
+	return 0;
+	
 }
 
 void dungeon_draw(int rows, int cols, std::vector<std::vector<char>>&map)
 {
-	for (int y = 0; y <= rows-1; y++)
+	for (int y = 1; y <= rows-1; y++)
 	{
 		for (int x = 0; x <= cols; x++)
 		{
 			mvaddch(y, x, map[y][x]);
 		}
 	}
+	
+	mvprintw(rows, 0, "Gold: %d \tDlvl - %d", p_gold, dlvl);
 }
 
 void dungeon_gen(int rows, int cols, std::vector<std::vector<char>>&map)
@@ -76,17 +129,18 @@ void dungeon_gen(int rows, int cols, std::vector<std::vector<char>>&map)
 		bool collision = 0;
 		int r_centerY, r_centerX = -1;
 		int r2_centerY, r2_centerX = -1;
+		int sy, sx;
 		// fill dungeon with walls and borders
 		for (int y = 0; y <= rows; y++)
 		{
 			for (int x = 0; x <= cols; x++)
 			{
 				// borders
-				if (y == 0 || x == 0 || y == rows || x == cols || y == (rows - 1))
+				if (y == 0 || y == 1 || x == 0 || y == rows || x == cols || y == (rows - 1))
 					map[y][x] = '%';
 				// walls
-				// else
-				//	map[y][x] = '#';
+				else
+					map[y][x] = '#';
 			}	
 		}
 		
@@ -98,7 +152,7 @@ void dungeon_gen(int rows, int cols, std::vector<std::vector<char>>&map)
 			{
 			collision = 0;
 			// generate room coords
-			ry = rand() % (rows - 5) + 1;
+			ry = rand() % (rows - 5) + 2;
 			rx = rand() % (cols - 7) + 1;
 			
 			// generate room size
@@ -156,8 +210,8 @@ void dungeon_gen(int rows, int cols, std::vector<std::vector<char>>&map)
 			r_centerY = ry + r_sizeY/2;
 			r_centerX = rx + r_sizeX/2;
 			
-			if (r_centerY >= rows)
-				r_centerY = rows - 1;
+			if (r_centerY >= rows-1)
+				r_centerY = rows-2;
 			if (r_centerX >= cols)
 				r_centerX = cols-1;
 			
@@ -183,6 +237,13 @@ void dungeon_gen(int rows, int cols, std::vector<std::vector<char>>&map)
 			//	r_centerX = r2_centerX;
 			//}
 		};
+	do
+	{
+		sy = rand() % rows;
+		sx = rand() % cols;
+	}
+	while(map[sy][sx] != ' ');
+	map[sy][sx] = '>';
 	}
 }
 
@@ -199,47 +260,58 @@ void place_p(int rows, int cols, std::vector<std::vector<char>>&map)
 
 void place_t(int rows, int cols, std::vector<std::vector<char>>&map)
 {
-	do 
+	for (int m = 0; m < 10; m++)
 	{
-		ty = rand() % rows;
-		tx = rand() % cols;
+		int my, mx; // goblin coords
+		do 
+		{
+			my = rand() % rows;
+			mx = rand() % cols;
+		}
+		while (map[my][mx] != ' ');
+		
+		monsters[m].y = my;
+		monsters[m].x = mx;
+		monsters[m].hp = rand() % 5 + 1;
+		map[my][mx] = 't';
+		
 	}
-	while (map[ty][tx] != ' ');
 	t_placed = 1;
 }
 
-void is_can_kill()
+int game_loop(int c, int rows, int cols, std::vector<std::vector<char>>&map)
 {
-	if ((px == tx) && (py == ty))
-	{
-		t_placed = 0;
-		p_gold += rand() % 10 + 1;
-	}
-}
-
-void game_loop(int c, int rows, int cols, std::vector<std::vector<char>>&map)
-{
-
+	
+	int new_lvl = 0;
 	srand(time(NULL));
 		
 	// coords for room
 	dungeon_gen(rows, cols, map);
 	
-	dungeon_draw(rows, cols, map);
-	
-	move_player(c, map);
+	if (!t_placed)
+		place_t(rows, cols, map);
 	
 	if (!p_placed)
 		place_p(rows, cols, map);
 	
-	if (!t_placed)
-		place_t(rows, cols, map);
+	if (c != 0)
+		new_lvl = p_action(c, map); // +battle()
 	
-	is_can_kill();
-	
-	mvaddch(ty, tx, 't'); // print goblin
+	dungeon_draw(rows, cols, map);
+		
 	mvaddch(py, px, '@'); // print cursor
-	mvprintw(rows, 0, "Gold: %d", p_gold);
+	
+	if (new_lvl)
+	{	
+		// mvprintw(0, 0, "Welcome to level %d (Press any button to continue)", ++dlvl);
+		// or
+		clear();
+		mvprintw(rows/2, cols/2 - 9, "Welcome to level %d", ++dlvl);
+	}
+	
+	c = getch();
+	
+	return c;
 }
 
 int main()
@@ -258,10 +330,10 @@ int main()
 
 	do 
 	{
-		game_loop(c, rows-1, cols-1, map);
+		c = game_loop(c, rows-1, cols-1, map);
 
 	}
-	while ((c = getch()) != 27); // 27 - ESC
+	while (c!= 27); // 27 - ESC
 
 	endwin();
 
