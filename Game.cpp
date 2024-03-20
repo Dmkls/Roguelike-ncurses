@@ -41,6 +41,21 @@ class Monster {
 		bool awake;
 };
 
+void define_colors()
+{
+	start_color();
+    use_default_colors();
+
+    init_pair(BLACK, COLOR_BLACK, COLOR_WHITE);
+    init_pair(RED, COLOR_RED, COLOR_BLACK);
+    init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
+    init_pair(YELLOW, COLOR_YELLOW, COLOR_BLACK);
+    init_pair(BLUE, COLOR_BLUE, COLOR_BLACK);
+    init_pair(MAGENTA, COLOR_MAGENTA, COLOR_BLACK);
+    init_pair(CYAN, COLOR_CYAN, COLOR_BLACK);
+    init_pair(WHITE, COLOR_WHITE, COLOR_WHITE);
+}
+
 int best_result()
 {
 	std::string line = "";
@@ -61,6 +76,11 @@ int best_result()
     }
     in.close(); 
 	return bres;
+}
+
+void game_start_screen(int rows, int cols)
+{
+	mvprintw(rows/2, cols/2-5, "RogueABC");
 }
 
 void results_write()
@@ -134,7 +154,9 @@ void monster_turn(std::vector<std::vector<char>>&map, Monster* monsters)
 		}
 		
 		
-		if (map[dir_y][dir_x] == '#' || map[dir_y][dir_x] == '%' || map[dir_y][dir_x] == '>' || map[dir_y][dir_x] == 't')
+		if (map[dir_y][dir_x] == '#' || map[dir_y][dir_x] == '%' 
+			|| map[dir_y][dir_x] == '>' || map[dir_y][dir_x] == 't'
+			|| map[dir_y][dir_x] == '+')
 		{
 			dir_y = monsters[m].y;
 			dir_x = monsters[m].x;
@@ -149,7 +171,9 @@ void monster_turn(std::vector<std::vector<char>>&map, Monster* monsters)
 				dir_x--;
 		}
 		
-		if (map[dir_y][dir_x] == '#' || map[dir_y][dir_x] == '%' ||  map[dir_y][dir_x] == '>' || map[dir_y][dir_x] == 't')
+		if (map[dir_y][dir_x] == '#' || map[dir_y][dir_x] == '%'
+			||  map[dir_y][dir_x] == '>' || map[dir_y][dir_x] == 't'
+			|| map[dir_y][dir_x] == '+')
 		{
 			dir_y = monsters[m].y;
 			dir_x = monsters[m].x;
@@ -264,8 +288,16 @@ int p_action(int c, std::vector<std::vector<char>>&map, Monster* monsters)
 		p.y = dir_y;
 		p.x = dir_x;
 	}
+	else if (map[dir_y][dir_x] == '+')
+	{
+		p.y = dir_y;
+		p.x = dir_x;
+		p.hp += rand() % 4 + 1;
+		map[dir_y][dir_x] = ' ';
+	}
 	else if (map[dir_y][dir_x] == 't')
 		battle(map, dir_y, dir_x, monsters);
+	
 	return 0;
 	
 }
@@ -334,6 +366,8 @@ void dungeon_gen(int rows, int cols, std::vector<std::vector<char>>&map)
 		int r_centerY, r_centerX = -1;
 		int r2_centerY, r2_centerX = -1;
 		int sy, sx;
+		int hy, hx;
+		int healthp = rand() % 3 + 1;
 		// fill dungeon with walls and borders
 		for (int y = 0; y <= rows; y++)
 		{
@@ -421,25 +455,6 @@ void dungeon_gen(int rows, int cols, std::vector<std::vector<char>>&map)
 			
 			if (r_placed > 1)
 				corridor(r_centerY, r_centerX, r2_centerY, r2_centerX, map);
-			
-			// for final dungeon
-			//if (r_centerX != -1)
-			//{
-			//	r2_centerY = ry + r_sizeY/2;
-			//	r2_centerX = rx + r_sizeX/2;
-			//	corridor(r_centerY, r_centerX, r2_centerY, r2_centerX, map);
-			//	printf("corridors +1\n" );
-			//}
-			//if (r_centerX == -1)
-			//{
-			//	r_centerY = ry + r_sizeY/2;
-			//	r_centerX = rx + r_sizeX/2;
-			//}
-			//if (r2_centerX != -1)
-			//{
-			//	r_centerY = r2_centerY;
-			//	r_centerX = r2_centerX;
-			//}
 		};
 	do
 	{
@@ -447,7 +462,18 @@ void dungeon_gen(int rows, int cols, std::vector<std::vector<char>>&map)
 		sx = rand() % cols;
 	}
 	while(map[sy][sx] != ' ');
-	map[sy][sx] = '>';
+	map[sy][sx] = '>';	
+	
+	for (int h = 0; h < healthp; h++)
+	{
+		do
+		{
+			hy = rand() % rows;
+			hx = rand() % cols;
+		}
+		while(map[hy][hx] != ' ');
+		map[hy][hx] = '+';
+	}
 	}
 }
 
@@ -486,6 +512,34 @@ void place_t(int rows, int cols, std::vector<std::vector<char>>&map, Monster* mo
 	t_placed = 1;
 }
 
+void print_end_screen(int rows, int cols)
+	{
+			mvprintw(rows/2, cols/2, R"(
+	_.---,._,'
+       /' _.--.<
+         /'     `'
+       /' _.---._____
+       \.'   ___, .-'`
+           /'    \\             .
+         /'       `-.          -|-
+        |                       |
+        |                   .-'~~~`-.
+        |                 .'         `.
+        |                 |  R  I  P  |
+        |                 |           |
+        |                 |           |
+         \              \\|           |//)");
+   
+		for (int c = 0; c < cols; c++)
+		{
+			mvaddch(rows/2+14, c, '^');
+		}
+		
+		mvprintw(rows/2, cols/2 - 10, "RIP. You had %d gold", p.gold);
+		mvprintw(rows/2+2, cols/2 - 10, "Best result is - %d", best_result());
+		results_write();
+}
+
 int game_loop(int c, int rows, int cols, std::vector<std::vector<char>>&map, Monster* monsters)
 {
 	
@@ -515,38 +569,19 @@ int game_loop(int c, int rows, int cols, std::vector<std::vector<char>>&map, Mon
 	if (p.hp <= 0)
 	{
 		clear();
-		mvprintw(rows/2, cols/2, R"(
-	_.---,._,'
-       /' _.--.<
-         /'     `'
-       /' _.---._____
-       \.'   ___, .-'`
-           /'    \\             .
-         /'       `-.          -|-
-        |                       |
-        |                   .-'~~~`-.
-        |                 .'         `.
-        |                 |  R  I  P  |
-        |                 |           |
-        |                 |           |
-         \              \\|           |//)");
-   
-		for (int c = 0; c < cols; c++)
+	
+		print_end_screen(rows, cols);
+		
+		do
 		{
-			mvaddch(rows/2+14, c, '^');
+			c = getch();
 		}
-		
-		
-		mvprintw(rows/2, cols/2 - 10, "RIP. You had %d gold", p.gold);
-		mvprintw(rows/2+2, cols/2 - 10, "Best result is - %d", best_result());
-		results_write();		
+		while ((c != 32) && (c != 27));
+		return 27;
 	}
 	if (new_lvl)
 	{	
 		mvprintw(0, 0, "Welcome to level %d (Press any button to continue)", ++dlvl);
-		// or
-		// clear();
-		// mvprintw(rows/2, cols/2 - 9, "Welcome to level %d", ++dlvl);
 	}
 	
 	c = getch();
@@ -560,17 +595,7 @@ int main()
 	int cols, rows;
 
 	initscr();
-	start_color();
-    use_default_colors();
-
-    init_pair(BLACK, COLOR_BLACK, COLOR_WHITE);
-    init_pair(RED, COLOR_RED, COLOR_BLACK);
-    init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
-    init_pair(YELLOW, COLOR_YELLOW, COLOR_BLACK);
-    init_pair(BLUE, COLOR_BLUE, COLOR_BLACK);
-    init_pair(MAGENTA, COLOR_MAGENTA, COLOR_BLACK);
-    init_pair(CYAN, COLOR_CYAN, COLOR_BLACK);
-    init_pair(WHITE, COLOR_WHITE, COLOR_WHITE);
+	define_colors();
 	
 	noecho(); // don't display input
 	curs_set(0); // hide cursor
@@ -582,7 +607,14 @@ int main()
 	Monster monsters[m_num];
 	
 	std::vector<std::vector<char>> map (rows, std::vector<char>(cols, '#'));
-
+	
+	game_start_screen(rows, cols);
+	do
+	{
+		c = getch();
+	}
+	while ((c != 32));
+	clear();
 	do 
 	{
 		c = game_loop(c, rows-1, cols-1, map, monsters);
