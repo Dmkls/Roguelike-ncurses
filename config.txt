@@ -1,0 +1,5 @@
+monsters: 10;
+max gold: 10;
+p hp: 10;
+p att: 1;
+p total gold: 0;

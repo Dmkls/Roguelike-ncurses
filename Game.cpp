@@ -2,39 +2,203 @@
 #include <vector>
 #include <stdlib.h>
 #include <time.h>
+#include <fstream>
 
-int px, py; // player coords
+#define BLACK 0
+#define RED 1
+#define GREEN 2
+#define YELLOW 3
+#define BLUE 4
+#define MAGENTA 5
+#define CYAN 6
+#define WHITE 7
 
 bool t_placed = 0;
 bool p_placed = 0;
 int r_placed = 0;
-int p_gold = 0;
 int dlvl = 1;
+int m_num = 0;
+int max_gold = 0;
+int m_defeated = 0;
+
+class Player {
+	public:
+		int x;
+		int y;
+		int gold = 0;
+		int att = 1;
+		int hp = 0;
+};
+
+Player p;
 
 class Monster {
 	public:
 		int y;
 		int x;
-		int hp;
+		int lvl;
+		int type;
+		bool awake;
 };
 
-Monster monsters[10];
-
-void battle(std::vector<std::vector<char>>&map, int dir_y, int dir_x)
+int best_result()
 {
-	for (int m = 0; m < 10; m++)
+	std::string line = "";
+	
+	std::ifstream in("db.txt");
+	
+	int res, bres = 0;
+	
+	if (in.is_open())
+    {
+        while (std::getline(in, line))
+        {
+			int end = line.find(';');
+			res = stoi(line.substr(1, end-1));
+			if (res > bres)
+				bres = res;
+        }
+    }
+    in.close(); 
+	return bres;
+}
+
+void results_write()
+{
+	std::ofstream out("db.txt", std::ios::app);
+	if (out.is_open())
+	{
+		out << '{' << p.gold << ';' << m_defeated << ';' << dlvl << '}' << std::endl;
+	}
+	out.close();   
+}
+
+void read_config()
+{
+	std::string line = "";
+	
+	std::ifstream in("config.txt");
+	if (in.is_open())
+    {
+        while (std::getline(in, line))
+        {
+            int n = line.find(':');
+			int end = line.find(';');
+			if (!m_num)
+				m_num = stoi(line.substr(n+2, end-n-2));
+			else if (!max_gold)
+				max_gold = stoi(line.substr(n+2, end-n-2));
+			else if (!p.hp)
+				p.hp = stoi(line.substr(n+2, end-n-2));
+        }
+    }
+    in.close(); 
+}
+
+void monster_turn(std::vector<std::vector<char>>&map, Monster* monsters)
+{
+	int dist_y, dist_x;
+	
+	for (int m = 0; m < m_num; m++)
+	{
+		
+		if (monsters[m].lvl <= 0)
+			continue;
+		
+		dist_y = abs(p.y - monsters[m].y);
+		dist_x = abs(p.x - monsters[m].x);
+		
+		if (dist_y < 5 && dist_x < 5)
+			monsters[m].awake = 1;
+		else
+			monsters[m].awake = 0;
+		
+		if (!monsters[m].awake)
+			continue;
+		
+		int dir_y = monsters[m].y, dir_x = monsters[m].x;
+		
+		if (dist_y > dist_x)
+		{
+			if (dir_y < p.y)
+				dir_y++;
+			else
+				dir_y--;
+		}
+		else
+		{
+			if (dir_x < p.x)
+				dir_x++;
+			else
+				dir_x--;
+		}
+		
+		
+		if (map[dir_y][dir_x] == '#' || map[dir_y][dir_x] == '%' || map[dir_y][dir_x] == '>' || map[dir_y][dir_x] == 't')
+		{
+			dir_y = monsters[m].y;
+			dir_x = monsters[m].x;
+			if (dir_y < p.y)
+				dir_y++;
+			else
+				dir_y--;
+			
+			if (dir_x < p.x)
+				dir_x++;
+			else
+				dir_x--;
+		}
+		
+		if (map[dir_y][dir_x] == '#' || map[dir_y][dir_x] == '%' ||  map[dir_y][dir_x] == '>' || map[dir_y][dir_x] == 't')
+		{
+			dir_y = monsters[m].y;
+			dir_x = monsters[m].x;
+			if (dist_y > dist_x)
+			{
+				if (dir_y > p.y)
+					dir_y++;
+				else
+					dir_y--;
+			}
+			else
+			{
+				if (dir_x > p.x)
+					dir_x++;
+				else
+					dir_x--;
+			}
+		}
+		
+		if (dir_y == p.y && dir_x == p.x)
+		{
+			p.hp -= dlvl/2 + 1;
+		}
+		else if (map[dir_y][dir_x] == ' ')
+		{
+			map[monsters[m].y][monsters[m].x] = ' ';
+			monsters[m].y = dir_y;
+			monsters[m].x = dir_x;
+			map[monsters[m].y][monsters[m].x] = 't';
+		}
+	}
+}
+
+void battle(std::vector<std::vector<char>>&map, int dir_y, int dir_x, Monster* monsters)
+{
+	for (int m = 0; m < m_num; m++)
 	{
 		if (dir_y == monsters[m].y && dir_x == monsters[m].x)
 		{
-			if (monsters[m].hp <= 0)
+			if (monsters[m].lvl >= 1)
+			{
+				monsters[m].lvl -= p.att;
+			}
+			if (monsters[m].lvl <= 0)
 			{
 				map[dir_y][dir_x] = ' ';
-				p_gold += rand() % 10 + 1;
-			}
-			else if (monsters[m].hp >= 1)
-			{
-				monsters[m].hp -= 1;
-			}
+				m_defeated++;
+				p.gold += rand() % max_gold + 1;
+			};
 			break;
 		}
 	}
@@ -75,9 +239,9 @@ void bigcorridor(int y, int x, int y2, int x2, std::vector<std::vector<char>>&ma
 	}
 }
 
-int p_action(int c, std::vector<std::vector<char>>&map)
+int p_action(int c, std::vector<std::vector<char>>&map, Monster* monsters)
 {
-	int dir_y = py, dir_x = px;
+	int dir_y = p.y, dir_x = p.x;
 	
 	if		(c == KEY_UP)
 		dir_y--;
@@ -87,7 +251,7 @@ int p_action(int c, std::vector<std::vector<char>>&map)
 		dir_x++;
 	else if (c == KEY_LEFT)
 		dir_x--;
-	else if (c == '>' && map[py][px] == '>')
+	else if (c == '>' && map[p.y][p.x] == '>')
 	{
 		r_placed = 0;
 		p_placed = 0;
@@ -97,26 +261,66 @@ int p_action(int c, std::vector<std::vector<char>>&map)
 	
 	if (map[dir_y][dir_x] == ' ' || map[dir_y][dir_x] == '>')
 	{
-		py = dir_y;
-		px = dir_x;
+		p.y = dir_y;
+		p.x = dir_x;
 	}
 	else if (map[dir_y][dir_x] == 't')
-		battle(map, dir_y, dir_x);
+		battle(map, dir_y, dir_x, monsters);
 	return 0;
 	
 }
 
-void dungeon_draw(int rows, int cols, std::vector<std::vector<char>>&map)
+void dungeon_draw(int rows, int cols, std::vector<std::vector<char>>&map, Monster* monsters)
 {
-	for (int y = 1; y <= rows-1; y++)
+	for (int y = 0; y <= rows; y++)
 	{
 		for (int x = 0; x <= cols; x++)
 		{
-			mvaddch(y, x, map[y][x]);
+			if (y == 0)
+			{
+				mvaddch(y, x, ' ');
+			}
+			else if (y == rows)
+			{
+				mvaddch(y, x, ' ');
+			}
+			else if (map[y][x] == 't')
+			{
+				for (int m = 0; m < m_num; m++)
+				{
+					if (monsters[m].y == y && monsters[m].x == x)
+					{
+						if (monsters[m].lvl < (((monsters[m].type - 96)*3) + (monsters[m].type-97)*3)/3)
+						{
+							attron(COLOR_PAIR(RED));
+								mvaddch(y, x, monsters[m].type);
+							standend();
+						}
+						else if (monsters[m].lvl < (((monsters[m].type - 96)*3) + (monsters[m].type-97)*3)/2)
+						{
+							attron(COLOR_PAIR(YELLOW));
+								mvaddch(y, x, monsters[m].type);
+							standend();
+						}
+						else
+							mvaddch(y, x, monsters[m].type);
+						
+						break;
+					}
+				}
+			}
+			else if (map[y][x] == '>')
+			{
+				attron(A_BOLD);
+					mvaddch(y, x, map[y][x]);
+				standend();
+			}
+			else
+				mvaddch(y, x, map[y][x]);
 		}
 	}
 	
-	mvprintw(rows, 0, "Gold: %d \tDlvl - %d", p_gold, dlvl);
+	mvprintw(rows, 0, "HP: %d \tAtt: %d \tGold: %d \tDlvl - %d",p.hp, p.att, p.gold, dlvl);
 }
 
 void dungeon_gen(int rows, int cols, std::vector<std::vector<char>>&map)
@@ -251,16 +455,16 @@ void place_p(int rows, int cols, std::vector<std::vector<char>>&map)
 {
 	do 
 	{
-		py = rand() % rows;
-		px = rand() % cols;
+		p.y = rand() % rows;
+		p.x = rand() % cols;
 	}
-	while (map[py][px] != ' ');
+	while (map[p.y][p.x] != ' ');
 	p_placed = 1;
 }
 
-void place_t(int rows, int cols, std::vector<std::vector<char>>&map)
+void place_t(int rows, int cols, std::vector<std::vector<char>>&map, Monster* monsters)
 {
-	for (int m = 0; m < 10; m++)
+	for (int m = 0; m < m_num; m++)
 	{
 		int my, mx; // goblin coords
 		do 
@@ -272,14 +476,17 @@ void place_t(int rows, int cols, std::vector<std::vector<char>>&map)
 		
 		monsters[m].y = my;
 		monsters[m].x = mx;
-		monsters[m].hp = rand() % 5 + 1;
+		monsters[m].type = rand() % dlvl + 97;
+		monsters[m].lvl = rand() % ((monsters[m].type - 96)*3) + (monsters[m].type-97)*3;
+		monsters[m].awake = 0;
+		
 		map[my][mx] = 't';
 		
 	}
 	t_placed = 1;
 }
 
-int game_loop(int c, int rows, int cols, std::vector<std::vector<char>>&map)
+int game_loop(int c, int rows, int cols, std::vector<std::vector<char>>&map, Monster* monsters)
 {
 	
 	int new_lvl = 0;
@@ -289,24 +496,57 @@ int game_loop(int c, int rows, int cols, std::vector<std::vector<char>>&map)
 	dungeon_gen(rows, cols, map);
 	
 	if (!t_placed)
-		place_t(rows, cols, map);
+		place_t(rows, cols, map, monsters);
 	
 	if (!p_placed)
 		place_p(rows, cols, map);
 	
 	if (c != 0)
-		new_lvl = p_action(c, map); // +battle()
+		new_lvl = p_action(c, map, monsters); // +battle()
 	
-	dungeon_draw(rows, cols, map);
+	monster_turn(map, monsters);
+	
+	dungeon_draw(rows, cols, map, monsters);
+	
+	attron(A_BOLD);
+		mvaddch(p.y, p.x, '@'); // print cursor
+	attroff(A_BOLD);
+	
+	if (p.hp <= 0)
+	{
+		clear();
+		mvprintw(rows/2, cols/2, R"(
+	_.---,._,'
+       /' _.--.<
+         /'     `'
+       /' _.---._____
+       \.'   ___, .-'`
+           /'    \\             .
+         /'       `-.          -|-
+        |                       |
+        |                   .-'~~~`-.
+        |                 .'         `.
+        |                 |  R  I  P  |
+        |                 |           |
+        |                 |           |
+         \              \\|           |//)");
+   
+		for (int c = 0; c < cols; c++)
+		{
+			mvaddch(rows/2+14, c, '^');
+		}
 		
-	mvaddch(py, px, '@'); // print cursor
-	
+		
+		mvprintw(rows/2, cols/2 - 10, "RIP. You had %d gold", p.gold);
+		mvprintw(rows/2+2, cols/2 - 10, "Best result is - %d", best_result());
+		results_write();		
+	}
 	if (new_lvl)
 	{	
-		// mvprintw(0, 0, "Welcome to level %d (Press any button to continue)", ++dlvl);
+		mvprintw(0, 0, "Welcome to level %d (Press any button to continue)", ++dlvl);
 		// or
-		clear();
-		mvprintw(rows/2, cols/2 - 9, "Welcome to level %d", ++dlvl);
+		// clear();
+		// mvprintw(rows/2, cols/2 - 9, "Welcome to level %d", ++dlvl);
 	}
 	
 	c = getch();
@@ -320,21 +560,35 @@ int main()
 	int cols, rows;
 
 	initscr();
+	start_color();
+    use_default_colors();
+
+    init_pair(BLACK, COLOR_BLACK, COLOR_WHITE);
+    init_pair(RED, COLOR_RED, COLOR_BLACK);
+    init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
+    init_pair(YELLOW, COLOR_YELLOW, COLOR_BLACK);
+    init_pair(BLUE, COLOR_BLUE, COLOR_BLACK);
+    init_pair(MAGENTA, COLOR_MAGENTA, COLOR_BLACK);
+    init_pair(CYAN, COLOR_CYAN, COLOR_BLACK);
+    init_pair(WHITE, COLOR_WHITE, COLOR_WHITE);
+	
 	noecho(); // don't display input
 	curs_set(0); // hide cursor
 	keypad(stdscr, 1); // allow arrows
 
 	getmaxyx(stdscr, rows, cols);
 	
+	read_config();
+	Monster monsters[m_num];
+	
 	std::vector<std::vector<char>> map (rows, std::vector<char>(cols, '#'));
 
 	do 
 	{
-		c = game_loop(c, rows-1, cols-1, map);
-
+		c = game_loop(c, rows-1, cols-1, map, monsters);
 	}
 	while (c!= 27); // 27 - ESC
-
+	
 	endwin();
 
 	return 0;
